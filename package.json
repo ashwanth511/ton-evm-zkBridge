@@ -17,7 +17,8 @@
     "@ton-community/sandbox": "^0.11.0",
     "@ton/core": "^0.56.0",
     "@ton/crypto": "^3.2.0",
-    "@ton/ton": "^13.5.1"
+    "@ton/ton": "^13.5.1",
+    "axios": "^1.7.9"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^2.0.2",

@@ -4,7 +4,8 @@ import { Bridge } from '../wrappers/bridge2';
 
 export async function run(provider: NetworkProvider, args: string[]) {
     const ui = provider.ui();
-
+const owner = "0QAXPxxHYsTmCWowXn66wPQpO_jqyiZ7ckumefvQ2YF4spca"
+const owner_address = Address.parse(owner);
     // Bridge contract address
     const bridgeAddress = "EQBrT2-9PpAjFqy_JDNLgF0MgZw3Vt2k74bvmQ7sXoipUzPD";
     
@@ -30,13 +31,13 @@ export async function run(provider: NetworkProvider, args: string[]) {
     await bridgeTact.send(
         provider.sender(),
         {
-            value: toNano('0.15'), // Increased gas amount
+            value: toNano('0.01'), // Increased gas amount
         },
         {
-            $$type: 'Deposit',
+            $$type: 'Withdraw',
             queryId: 1n,
-            evmAddress: 0x1234567890123456789012345678901234567890n,
-          //  amount: toNano('1'), // 1 USDT
+            toAddress: owner_address,
+           amount: toNano('0.62'), // 1 USDT
         }
     );
 
