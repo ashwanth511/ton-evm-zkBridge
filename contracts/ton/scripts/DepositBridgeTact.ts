@@ -6,7 +6,7 @@ export async function run(provider: NetworkProvider, args: string[]) {
     const ui = provider.ui();
 
     // Bridge contract address
-    const bridgeAddress = "EQDTHfFwAyr9Rkprt65KIxz1G24c-P_m2PRRtBY7J9UN182h";
+    const bridgeAddress = "kQB5_WRsrY5gmPDsDHcrpysPThongs02tk0behCIaEI6zAZO";
     
     console.log('Using bridge address:', bridgeAddress);
 

@@ -1,11 +1,5 @@
 import "@stdlib/deploy";
 import "@stdlib/ownable";
-import "@stdlib/stoppable";
-
-// Jetton wallet discovery message
-message GetWalletAddress {
-    owner_address: Address;
-}
 
 // Message for deposit operation
 message Deposit {
@@ -58,28 +52,23 @@ contract BridgeTact with Deployable, OwnableTransferable {
         self.totalLocked = 0;
     }
 
-    // Initialize the bridge's USDT wallet
-    receive("init_bridge_wallet") {
-        // Only owner can initialize
-        require(sender() == self.owner, "Only owner can initialize wallet");
+    /**
+     // Anyone can call this function to deposit USDT
+    receive(msg: Deposit) {
+        // Verify the message has enough value attached
+        require(context().value >= ton("0.05"), "Insufficient fees attached");
         
-        // Request wallet address from master contract
-        send(SendParameters{
-            to: self.usdtMaster,
-            value: 0,
-            mode: SendRemainingValue,
-            body: GetWalletAddress{
-                owner_address: myAddress()
-            }.toCell()
-        });
-    }
+        // Update total locked amount
+        self.totalLocked = self.totalLocked + msg.jettonAmount;
 
-    // Receive wallet address from master contract
-    receive(msg: GetWalletAddress) {
-        // Only accept from USDT master
-        require(sender() == self.usdtMaster, "Only USDT master can set wallet");
-        self.bridgeUsdtWallet = msg.owner_address;
-    }
+        // Emit deposit notification
+        emit(DepositNotification{
+            queryId: msg.queryId,
+            sender: sender(),
+            evmAddress: msg.evmAddress,
+            jettonAmount: msg.jettonAmount
+        }.toCell());
+    } */
 
     // Anyone can call this function to deposit USDT
     receive(msg: Deposit) {
@@ -105,8 +94,9 @@ contract BridgeTact with Deployable, OwnableTransferable {
                 )
                 .endCell()
         });
+
                 
-        // Emit deposit notification
+        // Emit deposit notification first
         emit(DepositNotification{
             queryId: msg.queryId,
             sender: sender(),
@@ -115,35 +105,51 @@ contract BridgeTact with Deployable, OwnableTransferable {
         }.toCell());
     }
 
-    // Process USDT transfer notification
+    // Handle jetton transfer notification
     receive(msg: JettonTransferNotification) {
+        // Verify this is from our USDT wallet
+        require(sender() == self.bridgeUsdtWallet, "Invalid jetton sender");
+        
+        // Parse the evmAddress from forward payload
+        let evmAddress: Int = msg.forwardPayload.loadUint(160);
+        
         // Update total locked amount
         self.totalLocked = self.totalLocked + msg.amount;
+
+        // Emit deposit notification
+        emit(DepositNotification{
+            queryId: msg.queryId,
+            sender: msg.sender,
+            evmAddress: evmAddress,
+            jettonAmount: msg.amount
+        }.toCell());
     }
 
-    // Process withdraw request
+    // Only owner can withdraw USDT
     receive(msg: Withdraw) {
-        // Only owner can process withdrawals
-        require(sender() == self.owner, "Only owner can withdraw");
+        // Check that only owner can call this
+        self.requireOwner();
         
-        // Verify we have enough balance
-        require(self.totalLocked >= msg.jettonAmount, "Insufficient bridge balance");
-
+        // Verify we have enough locked tokens
+        require(self.totalLocked >= msg.jettonAmount, "Insufficient locked balance");
+        
         // Update total locked amount
         self.totalLocked = self.totalLocked - msg.jettonAmount;
 
-        // Transfer USDT to recipient
+        // Request USDT transfer from bridge to user
         send(SendParameters{
-            to: self.bridgeUsdtWallet,
+            to: self.usdtMaster,  // Send to USDT master contract
             value: 0,
             mode: SendRemainingValue,
             body: beginCell()
                 .storeUint(0xf8a7ea5, 32)     // transfer operation
                 .storeUint(msg.queryId, 64)    // query id
                 .storeCoins(msg.jettonAmount)  // amount
-                .storeAddress(msg.tonAddress)  // recipient address
+                .storeAddress(msg.tonAddress)  // to address (user)
                 .storeAddress(myAddress())     // response destination
                 .storeBool(false)             // no custom payload
+                .storeCoins(0)                // no forward amount
+                .storeBool(false)             // no forward payload
                 .endCell()
         });
 
@@ -154,6 +160,12 @@ contract BridgeTact with Deployable, OwnableTransferable {
             tonAddress: msg.tonAddress,
             jettonAmount: msg.jettonAmount
         }.toCell());
+    }
+
+    // Set the bridge's USDT wallet address
+    receive("set_bridge_wallet") {
+        require(sender() == self.owner, "Only owner can set wallet");
+        self.bridgeUsdtWallet = sender();
     }
 
     // Getter to check total locked amount

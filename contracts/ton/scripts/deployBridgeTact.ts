@@ -7,7 +7,7 @@ export async function run(provider: NetworkProvider) {
     const owner = Address.parse('0QAXPxxHYsTmCWowXn66wPQpO_jqyiZ7ckumefvQ2YF4spca');
     
     // USDT master contract address - replace with actual USDT master address
-    const usdtMaster = Address.parse('kQD7ZnSh9s8FJhlqWfeHOg6Y8UJPoGn3knrxp7SVEkjvXX5u');
+    const usdtMaster = Address.parse('kQDmapJsFSPb94WPOMv4yyM0Vg5x6as9SPrT5kgaAA2UG1FT');
 
     // Initialize contract with owner and USDT master
     const bridgeTact = provider.open(await BridgeTact.fromInit(owner, usdtMaster));
@@ -36,14 +36,14 @@ export async function run(provider: NetworkProvider) {
         console.log('Bridge contract deployed successfully');
     }
 
-    // Initialize the bridge's USDT wallet
-    console.log('Initializing bridge USDT wallet...');
+    // Set the bridge's USDT wallet
+    console.log('Setting bridge USDT wallet...');
     await bridgeTact.send(
         provider.sender(),
         {
             value: toNano('0.05'),
         },
-        "init_bridge_wallet"
+        "set_bridge_wallet"
     );
     
     // Wait a bit for the transaction to process
@@ -53,10 +53,6 @@ export async function run(provider: NetworkProvider) {
     console.log('Getting bridge USDT wallet address...');
     const bridgeUsdtWallet = await bridgeTact.getGetBridgeUsdtWallet();
     console.log('Bridge USDT wallet:', bridgeUsdtWallet.toString());
-
-    // Also verify USDT master
-    const storedUsdtMaster = await bridgeTact.getGetUsdtMaster();
-    console.log('USDT Master:', storedUsdtMaster.toString());
 }
 
 //EQDXKTA14xyde2ZqkPCfNOSnGMiAGGBJDsijHHh2trBxyMdi - bridge
