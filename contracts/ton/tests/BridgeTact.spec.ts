@@ -1,40 +1,34 @@
 import { Blockchain, SandboxContract, TreasuryContract } from '@ton/sandbox';
-import { Cell, toNano } from '@ton/core';
-import { Bridge } from '../wrappers/func/Bridge';
+import { toNano } from '@ton/core';
+import { BridgeTact } from '../wrappers/BridgeTact';
 import '@ton/test-utils';
-import { compile } from '@ton/blueprint';
 
-describe('Bridge', () => {
-    let code: Cell;
-
-    beforeAll(async () => {
-        code = await compile('Bridge');
-    });
-
+describe('BridgeTact', () => {
     let blockchain: Blockchain;
     let deployer: SandboxContract<TreasuryContract>;
-    let bridge: SandboxContract<Bridge>;
+    let bridgeTact: SandboxContract<BridgeTact>;
 
     beforeEach(async () => {
         blockchain = await Blockchain.create();
 
-        bridge = blockchain.openContract(
-            Bridge.createFromConfig(
-                {
-                    id: 0,
-                    counter: 0,
-                },
-                code
-            )
-        );
+        bridgeTact = blockchain.openContract(await BridgeTact.fromInit(0n));
 
         deployer = await blockchain.treasury('deployer');
 
-        const deployResult = await bridge.sendDeploy(deployer.getSender(), toNano('0.05'));
+        const deployResult = await bridgeTact.send(
+            deployer.getSender(),
+            {
+                value: toNano('0.05'),
+            },
+            {
+                $$type: 'Deploy',
+                queryId: 0n,
+            }
+        );
 
         expect(deployResult.transactions).toHaveTransaction({
             from: deployer.address,
-            to: bridge.address,
+            to: bridgeTact.address,
             deploy: true,
             success: true,
         });
@@ -42,7 +36,7 @@ describe('Bridge', () => {
 
     it('should deploy', async () => {
         // the check is done inside beforeEach
-        // blockchain and bridge are ready to use
+        // blockchain and bridgeTact are ready to use
     });
 
     it('should increase counter', async () => {
@@ -52,26 +46,33 @@ describe('Bridge', () => {
 
             const increaser = await blockchain.treasury('increaser' + i);
 
-            const counterBefore = await bridge.getCounter();
+            const counterBefore = await bridgeTact.getCounter();
 
             console.log('counter before increasing', counterBefore);
 
-            const increaseBy = Math.floor(Math.random() * 100);
+            const increaseBy = BigInt(Math.floor(Math.random() * 100));
 
             console.log('increasing by', increaseBy);
 
-            const increaseResult = await bridge.sendIncrease(increaser.getSender(), {
-                increaseBy,
-                value: toNano('0.05'),
-            });
+            const increaseResult = await bridgeTact.send(
+                increaser.getSender(),
+                {
+                    value: toNano('0.05'),
+                },
+                {
+                    $$type: 'Add',
+                    queryId: 0n,
+                    amount: increaseBy,
+                }
+            );
 
             expect(increaseResult.transactions).toHaveTransaction({
                 from: increaser.address,
-                to: bridge.address,
+                to: bridgeTact.address,
                 success: true,
             });
 
-            const counterAfter = await bridge.getCounter();
+            const counterAfter = await bridgeTact.getCounter();
 
             console.log('counter after increasing', counterAfter);
 

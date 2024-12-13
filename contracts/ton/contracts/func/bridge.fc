@@ -49,6 +49,39 @@
     save_data(locked_tokens, owner_address, verifier_public_key, nonce);
 }
 
+;; Unlock tokens after cross-chain transfer
+() unlock_tokens(int amount, slice destination_address, int source_chain_id, slice signature) impure {
+    (int locked_tokens, slice owner_address, int verifier_public_key, int nonce) = load_data();
+    
+    ;; Verify signature
+    cell signed_data = begin_cell()
+        .store_coins(amount)
+        .store_slice(destination_address)
+        .store_uint(source_chain_id, 32)
+        .store_uint(nonce, 64)
+        .end_cell();
+    
+    ;; signature is already a slice, no need to parse
+    throw_unless(ERROR_INVALID_SIGNATURE, check_signature(cell_hash(signed_data), signature, verifier_public_key));
+    
+    ;; Update locked tokens
+    throw_unless(ERROR_INSUFFICIENT_BALANCE, locked_tokens >= amount);
+    locked_tokens -= amount;
+    nonce += 1;
+    
+    ;; Send tokens to destination
+    var msg = begin_cell()
+        .store_uint(0x18, 6)
+        .store_slice(destination_address)
+        .store_coins(amount)
+        .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+        .end_cell();
+    
+    send_raw_message(msg, 1);  ;; mode: 1 - pay transfer fees separately
+    
+    save_data(locked_tokens, owner_address, verifier_public_key, nonce);
+}
+
 ;; Release tokens with ZK proof verification
 () release_tokens(slice proof, slice public_inputs) impure {
     (int locked_tokens, slice owner_address, int verifier_public_key, int nonce) = load_data();
@@ -103,4 +136,15 @@
     }
     
     throw(0xffff);  ;; unknown operation
+}
+
+;; Get contract balance
+int get_balance() method_id {
+    return get_balance().pair_first();
+}
+
+;; Get locked tokens amount
+int get_locked_tokens() method_id {
+    (int locked_tokens, _, _, _) = load_data();
+    return locked_tokens;
 }

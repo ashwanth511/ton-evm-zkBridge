@@ -1,0 +1,84 @@
+#include "imports/stdlib/stdlib.fc";
+#include "imports/stdlib/message_utils.fc";
+
+;; Storage structure
+;; storage#_ owner_address:MsgAddress
+;;           usdt_jetton_wallet:MsgAddress
+;;           total_locked:Coins = Storage;
+
+const int op::transfer_notification = 0x7362d09c;    ;; transfer_notification op for jettons
+const int event::deposit = 0x1234;                   ;; event id for deposits
+
+(slice, slice, int) load_data() inline {
+    slice ds = get_data().begin_parse();
+    return (
+        ds~load_msg_addr(),  ;; owner_address
+        ds~load_msg_addr(),  ;; usdt_jetton_wallet
+        ds~load_coins()      ;; total_locked
+    );
+}
+
+() save_data(slice owner_address, slice usdt_jetton_wallet, int total_locked) impure inline {
+    set_data(begin_cell()
+        .store_slice(owner_address)
+        .store_slice(usdt_jetton_wallet)
+        .store_coins(total_locked)
+        .end_cell());
+}
+
+;; Receive USDT Jetton tokens and emit deposit event
+() receive_tokens(int msg_value, slice in_msg_body, slice sender_address) impure {
+    int op = in_msg_body~load_uint(32);  ;; load op
+    throw_unless(1001, op == op::transfer_notification);
+    
+    int jetton_amount = in_msg_body~load_coins();    ;; amount of jettons received
+    slice from_address = in_msg_body~load_msg_addr(); ;; sender of jettons
+    
+    ;; Load EVM address (should be 20 bytes = 160 bits)
+    throw_unless(1002, in_msg_body.slice_bits() >= 160);
+    int evm_address = in_msg_body~load_uint(160);
+    
+    ;; Load contract data
+    (slice owner_address, slice usdt_wallet, int total_locked) = load_data();
+    
+    ;; Verify sender is our jetton wallet using slice_hash comparison
+    throw_unless(1003, slice_hash(sender_address) == slice_hash(usdt_wallet));
+    
+    ;; Update total locked amount
+    total_locked += jetton_amount;
+    
+    ;; Emit deposit event
+    emit_log_simple(
+        event::deposit,
+        begin_cell()
+            .store_coins(jetton_amount)           ;; amount of USDT jettons
+            .store_uint(evm_address, 160)         ;; EVM address
+            .store_slice(from_address)            ;; TON sender address
+            .end_cell()
+            .begin_parse()
+    );
+    
+    ;; Save updated data
+    save_data(owner_address, usdt_wallet, total_locked);
+}
+
+;; Get total locked amount
+int get_total_locked() method_id {
+    (_, _, int total_locked) = load_data();
+    return total_locked;
+}
+
+() recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
+    if (in_msg_body.slice_empty?()) { 
+        return (); ;; ignore empty messages
+    }
+
+    slice cs = in_msg_full.begin_parse();
+    int flags = cs~load_uint(4);
+    if (flags & 1) { ;; ignore all bounced messages
+        return ();
+    }
+    slice sender_address = cs~load_msg_addr();
+
+    receive_tokens(msg_value, in_msg_body, sender_address);
+}

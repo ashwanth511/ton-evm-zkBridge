@@ -1,95 +1,117 @@
 import { TonClient } from "@ton/ton";
 import { Address, beginCell, Cell } from "@ton/core";
+import { getHttpEndpoint } from "@orbs-network/ton-access";
 
 // Configuration
-const BRIDGE_ADDRESS = process.env.BRIDGE_CONTRACT_ADDRESS || '';
-const TON_ENDPOINT = process.env.TON_ENDPOINT || 'https://toncenter.com/api/v2/jsonRPC';
+const BRIDGE_ADDRESS = "EQDXKTA14xyde2ZqkPCfNOSnGMiAGGBJDsijHHh2trBxyMdi";
 
 async function initTonClient() {
-    return new TonClient({ endpoint: TON_ENDPOINT });
+    // Get the best endpoint for TON mainnet
+    const endpoint = await getHttpEndpoint({
+        network: "testnet",// "mainnet"  // or "testnet" if you're using testnet
+    });
+    return new TonClient({ endpoint });
 }
 
-interface LockEvent {
-    nonce: bigint;
-    amount: bigint;
-    destinationAddress: string;
-    destinationChainId: number;
-    timestamp: number;
+interface DepositEvent {
+    queryId: string;
+    sender: string;
+    evmAddress: string;
+    jettonAmount: string;
+    timestamp: string;
     transactionHash: string;
 }
 
 class TonEventListener {
     private client: TonClient | null = null;
     private isRunning: boolean = false;
+    private lastTransactionLt: bigint | undefined;
 
     async start() {
-        if (!BRIDGE_ADDRESS) {
-            throw new Error('Bridge contract address not configured');
+        try {
+            this.client = await initTonClient();
+            this.isRunning = true;
+            await this.listen();
+        } catch (error) {
+            console.error('Failed to start listener:', error);
+            throw error;
         }
+    }
 
-        this.client = await initTonClient();
+    private async listen() {
+        if (!this.client) throw new Error('Client not initialized');
         const bridgeAddress = Address.parse(BRIDGE_ADDRESS);
-        this.isRunning = true;
 
-        console.log('Starting event listener for bridge contract:', BRIDGE_ADDRESS);
-        console.log('Connected to TON endpoint:', TON_ENDPOINT);
-        
+        console.log('Starting to listen for deposit events...');
+        console.log('Monitoring bridge contract:', BRIDGE_ADDRESS);
+
         while (this.isRunning) {
             try {
-                // Get latest transactions
                 const transactions = await this.client.getTransactions(bridgeAddress, {
-                    limit: 100
+                    limit: 100,
+                    lt: this.lastTransactionLt ? this.lastTransactionLt.toString() : undefined
                 });
 
                 for (const tx of transactions) {
-                    if (tx.inMessage?.body) {
-                        const slice = tx.inMessage.body.beginParse();
+                    // Update last transaction lt
+                    const currentLt = BigInt(tx.lt);
+                    if (!this.lastTransactionLt || currentLt > this.lastTransactionLt) {
+                        this.lastTransactionLt = currentLt;
+                    }
+
+                    // Process transaction messages
+                    const messages = tx.outMessages;
+                    if (!messages) continue;
+
+                    for (const [_, message] of messages) {
+                        if (!message.body) continue;
+
                         try {
-                            const eventId = slice.loadUint(16);
-                            if (eventId === 0x1234) { // Lock event ID
-                                const event = this.parseLockEvent(slice, tx);
-                                this.handleLockEvent(event);
+                            const slice = message.body.beginParse();
+                            const op = slice.loadUint(32);
+
+                            // Check if this is a DepositNotification event
+                            if (op === 0x7362d09c) {
+                                const queryId = slice.loadUint(64);
+                                const sender = slice.loadAddress();
+                                const evmAddress = slice.loadUint(160);
+                                const jettonAmount = slice.loadCoins();
+
+                                const event: DepositEvent = {
+                                    queryId: queryId.toString(),
+                                    sender: sender.toString(),
+                                    evmAddress: '0x' + evmAddress.toString(16).padStart(40, '0'),
+                                    jettonAmount: jettonAmount.toString(),
+                                    timestamp: new Date(tx.now * 1000).toISOString(),
+                                    transactionHash: tx.hash().toString('hex')
+                                };
+
+                                this.handleDepositEvent(event);
                             }
                         } catch (e) {
-                            // Skip if message doesn't match our event format
+                            // Skip messages that can't be parsed
                             continue;
                         }
                     }
                 }
 
                 // Wait before next poll
-                await new Promise(resolve => setTimeout(resolve, 10000)); // Poll every 10 seconds
+                await new Promise(resolve => setTimeout(resolve, 10000));
             } catch (error) {
-                console.error('Error fetching transactions:', error);
-                await new Promise(resolve => setTimeout(resolve, 5000)); // Wait before retry
+                console.error('Error while listening:', error);
+                await new Promise(resolve => setTimeout(resolve, 5000));
             }
         }
     }
 
-    private parseLockEvent(slice: any, transaction: any): LockEvent {
-        const nonce = slice.loadUint(64);
-        const amount = slice.loadCoins();
-        const destinationAddress = slice.loadSlice();
-        const destinationChainId = slice.loadUint(32);
-
-        return {
-            nonce: BigInt(nonce),
-            amount: amount,
-            destinationAddress: destinationAddress.toString(),
-            destinationChainId: destinationChainId,
-            timestamp: transaction.now || Math.floor(Date.now() / 1000),
-            transactionHash: transaction.hash || ''
-        };
-    }
-
-    private handleLockEvent(event: LockEvent) {
-        console.log('\n🔒 Lock Event Detected:');
+    private handleDepositEvent(event: DepositEvent) {
+        console.log('\n💸 Deposit Event Detected:');
         console.log('------------------------');
-        console.log('Nonce:', event.nonce.toString());
-        console.log('Amount:', event.amount.toString(), 'TON');
-        console.log('Destination Address:', event.destinationAddress);
-        console.log('Destination Chain ID:', event.destinationChainId);
-        console.log('Timestamp:', new Date(event.timestamp * 1000).toISOString());
+        console.log('Query ID:', event.queryId);
+        console.log('Sender:', event.sender);
+        console.log('EVM Address:', event.evmAddress);
+        console.log('Jetton Amount:', event.jettonAmount);
+        console.log('Timestamp:', event.timestamp);
         console.log('Transaction Hash:', event.transactionHash);
         console.log('------------------------\n');
     }

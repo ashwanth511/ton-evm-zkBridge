@@ -5,19 +5,19 @@
 
 ;; Get sender address
 slice sender_address() inline {
-    var cs = get_c4();
-    var ds = cs.begin_parse();
+    var ds = get_data().begin_parse();
     return ds~load_msg_addr();
 }
 
-;; Load coins from slice
-int load_coins(slice s) inline {
-    return s~load_grams();
+;; Parse coins from slice
+(int) parse_coins(slice s) inline {
+    int amount = s~load_coins();
+    return amount;
 }
 
 ;; Store coins to builder
-builder store_coins(builder b, int amount) inline {
-    return b.store_grams(amount);
+builder append_coins(builder b, int amount) inline {
+    return b.store_coins(amount);
 }
 
 ;; Emit log message
