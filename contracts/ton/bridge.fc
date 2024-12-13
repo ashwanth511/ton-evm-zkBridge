@@ -1,0 +1,106 @@
+#include "stdlib/stdlib.fc";
+#include "stdlib/message_utils.fc";
+
+;; Storage structure
+;; storage#_ locked_tokens:Coins
+;;           owner_address:MsgAddress
+;;           verifier_public_key:uint256
+;;           nonce:uint64 = Storage;
+
+(int, slice, int, int) load_data() inline {
+    slice ds = get_data().begin_parse();
+    return (
+        ds~load_coins(),     ;; locked_tokens
+        ds~load_msg_addr(),  ;; owner_address
+        ds~load_uint(256),   ;; verifier_public_key
+        ds~load_uint(64)     ;; nonce
+    );
+}
+
+() save_data(int locked_tokens, slice owner_address, int verifier_public_key, int nonce) impure inline {
+    set_data(begin_cell()
+        .store_coins(locked_tokens)
+        .store_slice(owner_address)
+        .store_uint(verifier_public_key, 256)
+        .store_uint(nonce, 64)
+        .end_cell());
+}
+
+;; Lock tokens for cross-chain transfer
+() lock_tokens(int amount, slice destination_address, int destination_chain_id) impure {
+    (int locked_tokens, slice owner_address, int verifier_public_key, int nonce) = load_data();
+    
+    ;; Update locked tokens
+    locked_tokens += amount;
+    nonce += 1;
+    
+    ;; Emit event for off-chain verification
+    emit_log_simple(
+        0x1234,  ;; event_id for lock
+        begin_cell()
+            .store_uint(nonce, 64)
+            .store_coins(amount)
+            .store_slice(destination_address)
+            .store_uint(destination_chain_id, 32)
+            .end_cell()
+            .begin_parse()
+    );
+    
+    save_data(locked_tokens, owner_address, verifier_public_key, nonce);
+}
+
+;; Release tokens with ZK proof verification
+() release_tokens(slice proof, slice public_inputs) impure {
+    (int locked_tokens, slice owner_address, int verifier_public_key, int nonce) = load_data();
+    
+    ;; Verify the ZK proof off-chain
+    ;; The proof verification will be done by external validators
+    ;; Here we just check if the message is from an authorized validator
+    
+    slice sender_addr = sender_address();
+    throw_unless(401, equal_slices(sender_addr, owner_address));
+    
+    ;; Parse transfer details from public inputs
+    slice inputs = public_inputs;
+    int transfer_amount = inputs~load_coins();
+    slice recipient_address = inputs~load_msg_addr();
+    
+    ;; Update state
+    throw_unless(402, locked_tokens >= transfer_amount);
+    locked_tokens -= transfer_amount;
+    
+    ;; Send tokens to recipient
+    var msg = begin_cell()
+        .store_uint(0x18, 6)           ;; nobounce
+        .store_slice(recipient_address)
+        .store_coins(transfer_amount)
+        .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+        .end_cell();
+    
+    send_raw_message(msg, 1);  ;; pay transfer fees from contract balance
+    
+    save_data(locked_tokens, owner_address, verifier_public_key, nonce);
+}
+
+() recv_internal(int msg_value, cell in_msg_full, slice in_msg) impure {
+    if (in_msg.slice_empty?()) {
+        return ();
+    }
+    
+    int op = in_msg~load_uint(32);
+    
+    if (op == 1) {  ;; lock tokens
+        int amount = in_msg~load_coins();
+        slice destination_address = in_msg~load_msg_addr();
+        int destination_chain_id = in_msg~load_uint(32);
+        return lock_tokens(amount, destination_address, destination_chain_id);
+    }
+    
+    if (op == 2) {  ;; release tokens
+        slice proof = in_msg~load_ref().begin_parse();
+        slice public_inputs = in_msg~load_ref().begin_parse();
+        return release_tokens(proof, public_inputs);
+    }
+    
+    throw(0xffff);  ;; unknown operation
+}

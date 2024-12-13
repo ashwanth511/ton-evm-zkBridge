@@ -1,0 +1,42 @@
+;; Message utilities for FunC
+
+#include "stdlib.fc";
+#include "constants.fc";
+
+;; Get sender address
+slice sender_address() inline {
+    var cs = get_c4();
+    var ds = cs.begin_parse();
+    return ds~load_msg_addr();
+}
+
+;; Load coins from slice
+int load_coins(slice s) inline {
+    return s~load_grams();
+}
+
+;; Store coins to builder
+builder store_coins(builder b, int amount) inline {
+    return b.store_grams(amount);
+}
+
+;; Emit log message
+() emit_log_simple(int event_id, slice data) impure inline {
+    var msg = begin_cell()
+        .store_uint(0x10, 6)           ;; nobounce
+        .store_uint(event_id, 256)     ;; event identifier
+        .store_slice(data)             ;; event data
+        .end_cell();
+    send_raw_message(msg, 0);
+}
+
+;; Send tokens
+() send_tokens(slice to_address, int amount, int send_mode) impure inline {
+    var msg = begin_cell()
+        .store_uint(0x18, 6)           ;; nobounce
+        .store_slice(to_address)
+        .store_coins(amount)
+        .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+        .end_cell();
+    send_raw_message(msg, send_mode);
+}

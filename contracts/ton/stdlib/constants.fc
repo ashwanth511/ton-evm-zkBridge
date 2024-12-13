@@ -1,0 +1,19 @@
+;; Constants for FunC standard library
+
+const int SEND_MODE_REGULAR = 0;
+const int SEND_MODE_PAY_FEES_SEPARATELY = 1;
+const int SEND_MODE_IGNORE_ERRORS = 2;
+const int SEND_MODE_DESTROY_IF_ZERO = 32;
+const int SEND_MODE_REMAINING_GAS = 64;
+const int SEND_MODE_ALL = 128;
+
+const int BOUNCEABLE = 0x18;
+const int NON_BOUNCEABLE = 0x10;
+
+;; Error codes
+const int ERROR_INVALID_SIGNATURE = 401;
+const int ERROR_INSUFFICIENT_BALANCE = 402;
+const int ERROR_INVALID_ADDRESS = 403;
+const int ERROR_INVALID_AMOUNT = 404;
+const int ERROR_INVALID_STATE = 405;
+const int ERROR_UNAUTHORIZED = 406;

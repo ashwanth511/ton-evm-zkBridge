@@ -1,0 +1,40 @@
+{
+  "name": "zk-bridge",
+  "version": "1.0.0",
+  "description": "Zero-knowledge proof based bridge between TON and EVM networks",
+  "main": "index.js",
+  "scripts": {
+    "test": "hardhat test",
+    "compile": "hardhat compile",
+    "compile:circuits": "node scripts/compile-circuits.js",
+    "deploy": "hardhat run scripts/deploy.js"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.8.0",
+    "@ton-community/func-js": "^0.6.2",
+    "@ton-community/sandbox": "^0.11.0",
+    "@ton/core": "^0.56.0",
+    "@ton/crypto": "^3.2.0",
+    "@ton/ton": "^13.5.1"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^2.0.2",
+    "@nomiclabs/hardhat-ethers": "^2.2.3",
+    "@nomiclabs/hardhat-waffle": "^2.0.5",
+    "@types/snarkjs": "^0.7.8",
+    "chai": "^4.3.7",
+    "circom": "^0.5.46",
+    "circomlib": "^2.0.5",
+    "ethereum-waffle": "^4.0.10",
+    "ethers": "^5.7.2",
+    "hardhat": "^2.14.0",
+    "snarkjs": "^0.7.5",
+    "typescript": "^5.0.4"
+  },
+  "directories": {
+    "test": "test"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
