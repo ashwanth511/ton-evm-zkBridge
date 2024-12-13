@@ -30,7 +30,7 @@ export async function run(provider: NetworkProvider, args: string[]) {
     await bridgeTact.send(
         provider.sender(),
         {
-            value: toNano('0.15'), // Increased gas amount
+            value: toNano('0.13'), // Increased gas amount
         },
         {
             $$type: 'Deposit',
