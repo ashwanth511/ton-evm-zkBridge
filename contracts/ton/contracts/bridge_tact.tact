@@ -1,6 +1,39 @@
 import "@stdlib/deploy";
 import "@stdlib/ownable";
 
+struct JettonWalletData {
+    balance: Int as coins;
+    ownerAddress: Address;
+    jettonMasterAddress: Address;
+    jettonWalletCode: Cell;
+}
+
+fun calculateJettonWalletAddress(
+    ownerAddress: Address,
+    jettonMasterAddress: Address,
+    jettonWalletCode: Cell
+): Address {
+
+    let initData = JettonWalletData{
+        balance: 0,
+        ownerAddress,
+        jettonMasterAddress,
+        jettonWalletCode,
+    };
+
+    return contractAddress(StateInit{
+        code: jettonWalletCode,
+        data: initData.toCell(),
+    });
+}
+
+message(0x7362d09c) JettonTransferNotification {
+    queryId: Int as uint64;
+    amount: Int as coins;
+    sender: Address;
+    forwardPayload: Slice as remaining;
+}
+
 // Message for deposit operation
 message Deposit {
     queryId: Int as uint64;
@@ -15,13 +48,13 @@ message Withdraw {
     jettonAmount: Int as coins;
 }
 
-// Jetton transfer notification
+/* // Jetton transfer notification
 message JettonTransferNotification {
     queryId: Int as uint64;
     amount: Int as coins;
     sender: Address;
     forwardPayload: Slice as remaining;
-}
+} */
 
 // Event message for deposit input
 message DepositNotification {
@@ -39,6 +72,8 @@ message WithdrawNotification {
     jettonAmount: Int as coins;
 }
 
+
+
 contract BridgeTact with Deployable, OwnableTransferable {
     owner: Address;                    // Contract owner address
     usdtMaster: Address;              // USDT Jetton master contract
@@ -51,24 +86,6 @@ contract BridgeTact with Deployable, OwnableTransferable {
         self.bridgeUsdtWallet = newAddress(0, 0); // Will be set after deployment
         self.totalLocked = 0;
     }
-
-    /**
-     // Anyone can call this function to deposit USDT
-    receive(msg: Deposit) {
-        // Verify the message has enough value attached
-        require(context().value >= ton("0.05"), "Insufficient fees attached");
-        
-        // Update total locked amount
-        self.totalLocked = self.totalLocked + msg.jettonAmount;
-
-        // Emit deposit notification
-        emit(DepositNotification{
-            queryId: msg.queryId,
-            sender: sender(),
-            evmAddress: msg.evmAddress,
-            jettonAmount: msg.jettonAmount
-        }.toCell());
-    } */
 
     // Anyone can call this function to deposit USDT
     receive(msg: Deposit) {

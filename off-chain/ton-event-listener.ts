@@ -3,23 +3,14 @@ import { Address, beginCell, Cell } from "@ton/core";
 import { getHttpEndpoint } from "@orbs-network/ton-access";
 
 // Configuration
-const BRIDGE_ADDRESS = "EQDXKTA14xyde2ZqkPCfNOSnGMiAGGBJDsijHHh2trBxyMdi";
+const BRIDGE_ADDRESS = "EQBrT2-9PpAjFqy_JDNLgF0MgZw3Vt2k74bvmQ7sXoipUzPD";
 
-async function initTonClient() {
-    // Get the best endpoint for TON mainnet
-    const endpoint = await getHttpEndpoint({
-        network: "testnet",// "mainnet"  // or "testnet" if you're using testnet
-    });
-    return new TonClient({ endpoint });
-}
-
+// Event structure matching the contract
 interface DepositEvent {
-    queryId: string;
+    queryId: bigint;
     sender: string;
     evmAddress: string;
-    jettonAmount: string;
-    timestamp: string;
-    transactionHash: string;
+    tonAmount: bigint;
 }
 
 class TonEventListener {
@@ -28,109 +19,105 @@ class TonEventListener {
     private lastTransactionLt: bigint | undefined;
 
     async start() {
-        try {
-            this.client = await initTonClient();
-            this.isRunning = true;
-            await this.listen();
-        } catch (error) {
-            console.error('Failed to start listener:', error);
-            throw error;
-        }
+        if (this.isRunning) return;
+        
+        // Initialize TON client with TONX endpoint
+        const endpoint = "https://mainnet-rpc.tonxapi.com/v2/json-rpc/c8d4c912-a2ff-42cf-8792-76fcce6edde5";
+        this.client = new TonClient({ endpoint });
+        this.isRunning = true;
+        
+        console.log("Starting event listener...");
+        await this.listen();
     }
 
-    private async listen() {
-        if (!this.client) throw new Error('Client not initialized');
-        const bridgeAddress = Address.parse(BRIDGE_ADDRESS);
-
-        console.log('Starting to listen for deposit events...');
-        console.log('Monitoring bridge contract:', BRIDGE_ADDRESS);
-
-        while (this.isRunning) {
+    async listen() {
+        console.clear();
+        console.log(" Listening for bridge events on:", BRIDGE_ADDRESS);
+        console.log("Waiting for deposits...\n");
+        
+        while (this.isRunning && this.client) {
             try {
-                const transactions = await this.client.getTransactions(bridgeAddress, {
-                    limit: 100,
-                    lt: this.lastTransactionLt ? this.lastTransactionLt.toString() : undefined
-                });
+                // Get transactions since last check
+                const transactions = await this.client.getTransactions(
+                    Address.parse(BRIDGE_ADDRESS),
+                    { 
+                        limit: 100, 
+                        lt: this.lastTransactionLt ? this.lastTransactionLt.toString() : undefined 
+                    }
+                );
 
                 for (const tx of transactions) {
                     // Update last transaction lt
-                    const currentLt = BigInt(tx.lt);
-                    if (!this.lastTransactionLt || currentLt > this.lastTransactionLt) {
-                        this.lastTransactionLt = currentLt;
+                    if (!this.lastTransactionLt || tx.lt > this.lastTransactionLt) {
+                        this.lastTransactionLt = tx.lt;
                     }
 
-                    // Process transaction messages
-                    const messages = tx.outMessages;
-                    if (!messages) continue;
-
-                    for (const [_, message] of messages) {
-                        if (!message.body) continue;
-
-                        try {
-                            const slice = message.body.beginParse();
-                            const op = slice.loadUint(32);
-
-                            // Check if this is a DepositNotification event
-                            if (op === 0x7362d09c) {
-                                const queryId = slice.loadUint(64);
-                                const sender = slice.loadAddress();
-                                const evmAddress = slice.loadUint(160);
-                                const jettonAmount = slice.loadCoins();
-
-                                const event: DepositEvent = {
-                                    queryId: queryId.toString(),
-                                    sender: sender.toString(),
-                                    evmAddress: '0x' + evmAddress.toString(16).padStart(40, '0'),
-                                    jettonAmount: jettonAmount.toString(),
-                                    timestamp: new Date(tx.now * 1000).toISOString(),
-                                    transactionHash: tx.hash().toString('hex')
-                                };
-
-                                this.handleDepositEvent(event);
+                    // Check for events in transaction
+                    if (tx.outMessages) {
+                        for (const [_, msg] of tx.outMessages) {
+                            if (msg.body) {
+                                try {
+                                    const slice = msg.body.beginParse();
+                                    const op = slice.loadUint(32);
+                                    
+                                    // Check if this is a DepositEvent
+                                    if (op === 0xf8b8c913) {
+                                        const event = this.parseDepositEvent(slice);
+                                        await this.handleDepositEvent(event);
+                                    }
+                                } catch (e) {
+                                    // Skip messages that can't be parsed
+                                    continue;
+                                }
                             }
-                        } catch (e) {
-                            // Skip messages that can't be parsed
-                            continue;
                         }
                     }
                 }
 
-                // Wait before next poll
-                await new Promise(resolve => setTimeout(resolve, 10000));
+                // Wait before next check
+                await new Promise(resolve => setTimeout(resolve, 1000));
             } catch (error) {
-                console.error('Error while listening:', error);
+                console.error("\n Error in event listener:", error);
                 await new Promise(resolve => setTimeout(resolve, 5000));
             }
         }
     }
 
-    private handleDepositEvent(event: DepositEvent) {
-        console.log('\n💸 Deposit Event Detected:');
-        console.log('------------------------');
-        console.log('Query ID:', event.queryId);
-        console.log('Sender:', event.sender);
-        console.log('EVM Address:', event.evmAddress);
-        console.log('Jetton Amount:', event.jettonAmount);
-        console.log('Timestamp:', event.timestamp);
-        console.log('Transaction Hash:', event.transactionHash);
-        console.log('------------------------\n');
+    private parseDepositEvent(slice: any): DepositEvent {
+        return {
+            queryId: slice.loadUintBig(64),
+            sender: slice.loadAddress().toString(),
+            evmAddress: '0x' + slice.loadUintBig(160).toString(16).padStart(40, '0'),
+            tonAmount: slice.loadCoins()
+        };
     }
 
-    async stop() {
+    async handleDepositEvent(event: DepositEvent) {
+        console.log(' New Deposit Event Detected:');
+        console.log('─ From:', event.sender);
+        console.log('─ To EVM:', event.evmAddress);
+        console.log('─ Amount:', event.tonAmount.toString(), 'nanoTON');
+        console.log('─ Query ID:', event.queryId.toString());
+        console.log('');
+    }
+
+    stop() {
         this.isRunning = false;
-        console.log('Event listener stopped');
+        console.log("\n Stopping event listener...");
     }
 }
 
 // Start the listener
 const listener = new TonEventListener();
+listener.start().catch(console.error);
 
 // Handle graceful shutdown
-process.on('SIGINT', async () => {
-    console.log('Shutting down...');
-    await listener.stop();
+process.on('SIGINT', () => {
+    listener.stop();
     process.exit(0);
 });
 
-// Start listening for events
-listener.start().catch(console.error);
+process.on('SIGTERM', () => {
+    listener.stop();
+    process.exit(0);
+});
