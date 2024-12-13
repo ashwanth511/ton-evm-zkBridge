@@ -1,5 +1,5 @@
-#include "stdlib/stdlib.fc";
-#include "stdlib/message_utils.fc";
+#include "imports/stdlib/stdlib.fc";
+#include "imports/stdlib/message_utils.fc";
 
 ;; Storage structure
 ;; storage#_ locked_tokens:Coins
