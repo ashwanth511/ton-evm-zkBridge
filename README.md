@@ -65,6 +65,7 @@ zk-bridge/
 - Circom 2.0
 - Solidity compiler ^0.8.0
 - Foundry (for EVM contract development)
+- Blueprint (for TON contract development)
 
 ## Development Setup
 
