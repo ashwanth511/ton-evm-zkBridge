@@ -74,9 +74,13 @@ zk-bridge/
 npm install
 ```
 
-2. Install TON dependencies:
+2. Install TON dependencies and Blueprint:
 ```bash
+# Install TON dependencies
 cd contracts/ton && npm install
+
+# Install Blueprint
+npm install -g @ton/blueprint
 ```
 
 3. Install Foundry (for EVM contracts):
@@ -88,6 +92,24 @@ foundryup
 4. Compile circuits:
 ```bash
 node scripts/compile-circuits.js
+```
+
+### TON Contract Development
+
+Using Blueprint for TON contract development:
+
+```bash
+# Create new contract
+blueprint create contract
+
+# Build contracts
+blueprint build
+
+# Test contracts
+blueprint test
+
+# Deploy contract
+blueprint run
 ```
 
 ## Bridge Components
