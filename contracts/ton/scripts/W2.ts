@@ -7,7 +7,7 @@ export async function run(provider: NetworkProvider, args: string[]) {
 const owner = "0QAXPxxHYsTmCWowXn66wPQpO_jqyiZ7ckumefvQ2YF4spca"
 const owner_address = Address.parse(owner);
     // Bridge contract address
-    const bridgeAddress = "EQBrT2-9PpAjFqy_JDNLgF0MgZw3Vt2k74bvmQ7sXoipUzPD";
+    const bridgeAddress = "EQCFX97P86v7GNUVgwlrf-G6qNBiQo68GpeK05E-i3zeZcni";
     
     console.log('Using bridge address:', bridgeAddress);
 
@@ -37,7 +37,7 @@ const owner_address = Address.parse(owner);
             $$type: 'Withdraw',
             queryId: 1n,
             toAddress: owner_address,
-           amount: toNano('0.62'), // 1 USDT
+           amount: toNano('0.02'), // 1 USDT
         }
     );
 

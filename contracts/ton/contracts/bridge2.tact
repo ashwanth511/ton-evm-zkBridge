@@ -29,22 +29,26 @@ message WithdrawEvent {
 
 contract Bridge with Deployable {
     owner: Address;
+   nonce: Int;
     
     init(owner: Address) {
         self.owner = owner;
+        self.nonce = 0;
     }
 
     // Handle deposit requests
     receive(msg: Deposit) {
+        let gas: Int = gasConsumed();
         // Require minimum fees for processing
-        require(context().value >= ton("0.1"), "Insufficient fees");
-        
+        require(context().value >= gas, "Insufficient fees"); //  ton("0.1")
+        let newNonce: Int = self.nonce + 1;
+        self.nonce = newNonce;
         // Calculate actual deposit amount after gas fees
-        let depositAmount: Int = context().value - ton("0.1");
+        let depositAmount: Int = context().value -  gas; //  ton("0.1")
         
         // Emit deposit event with EVM address and TON value after gas
         emit(DepositEvent{
-            queryId: msg.queryId,
+            queryId: newNonce,// msg.queryId,
             sender: sender(),
             evmAddress: msg.evmAddress,
             tonAmount: depositAmount
