@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 interface IVerifier {
@@ -36,7 +36,7 @@ contract Bridge is ReentrancyGuard, Ownable {
         bytes32 transferId
     );
     
-    constructor(address _token, address _verifier) {
+    constructor(address _token, address _verifier) Ownable(msg.sender) {
         token = IERC20(_token);
         verifier = IVerifier(_verifier);
     }
