@@ -1,6 +1,9 @@
 import { ethers } from 'ethers';
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
+ import { withdrawToTon } from './withdraw';
+import { ethToTon } from '../utils/priceConverter';
+
 
 // Load environment variables from .env file
 dotenv.config({ path: resolve(__dirname, '../.env') });
@@ -10,7 +13,7 @@ const bridgeABI = require('./abi.json');
 
 // Configuration
 const BRIDGE_ADDRESS = process.env.EVM_BRIDGE_CONTRACT_ADDRESS;
-const RPC_URL = process.env.EVM_RPC_URL;
+const RPC_URL = process.env.SEPOLIA_RPC_URL;
 
 if (!BRIDGE_ADDRESS || !RPC_URL) {
     throw new Error("Missing required environment variables");
@@ -54,7 +57,28 @@ async function main() {
     Amount: ${ethers.utils.formatEther(amount)} ETH
     Transaction Hash: ${event.transactionHash}`);
                 
-                processedQueryIds.add(queryIdStr);
+                try {
+                    // Convert ETH amount to TON
+                    const ethAmountNumber = parseFloat(ethers.utils.formatEther(amount));
+                    const tonAmount = await ethToTon(ethAmountNumber);
+                    
+                    // Initiate withdrawal to TON
+                    const withdrawResult = await withdrawToTon({
+                        amount: tonAmount.toString(),
+                        toAddress: tonAddressStr
+                    });
+
+                
+
+                    
+                    console.log(`\nWithdrawal initiated:
+    TON Amount: ${tonAmount} TON
+    Transaction Hash:  ${withdrawResult.hash}`); 
+                    
+                    processedQueryIds.add(queryIdStr);
+                } catch (error) {
+                    console.error(`\nError processing withdrawal for queryId ${queryId}:`, error);
+                }
             }
         });
 
@@ -81,8 +105,6 @@ process.on('SIGINT', () => {
     process.exit(0);
 });
 
-// Start the event tracker
-main().catch(error => {
-    console.error("Unhandled error:", error instanceof Error ? error.message : String(error));
-    process.exit(1);
-});
+if (require.main === module) {
+    main();
+}

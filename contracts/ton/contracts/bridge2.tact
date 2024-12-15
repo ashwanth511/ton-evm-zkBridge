@@ -36,11 +36,11 @@ contract Bridge with Deployable {
         self.nonce = 0;
     }
 
-    // Handle deposit requests
+    // Handle deposit requests 
     receive(msg: Deposit) {
         let gas: Int = gasConsumed();
         // Require minimum fees for processing
-        require(context().value >= gas, "Insufficient fees"); //  ton("0.1")
+        require(context().value > gas, "Insufficient fee"); //  ton("0.1")
         let newNonce: Int = self.nonce + 1;
         self.nonce = newNonce;
         // Calculate actual deposit amount after gas fees
@@ -58,10 +58,11 @@ contract Bridge with Deployable {
     // Only owner can withdraw
     receive(msg: Withdraw) {
         // Verify sender is owner
+         let gas: Int = gasConsumed();
         require(sender() == self.owner, "Only owner can withdraw");
         
         // Verify contract has enough balance
-        require(myBalance() >= msg.amount + ton("0.1"), "Insufficient contract balance");
+        require(myBalance() >= msg.amount + gas , "Insufficient contract balance"); //  ton("0.1")
         
         // Emit withdraw event
         emit(WithdrawEvent{

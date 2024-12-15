@@ -1,8 +1,9 @@
 import { TonClient, Address } from "@ton/ton";
 import { getHttpEndpoint } from "@orbs-network/ton-access";
+import { withdrawToEVM } from './withdraw';
 
 // Configuration
-const BRIDGE_ADDRESS = "EQCFX97P86v7GNUVgwlrf-G6qNBiQo68GpeK05E-i3zeZcni";
+const BRIDGE_ADDRESS = "EQAqO-g7-NpA76JakmlnZnNOafdDdrKy_LMtPpIkWnlkg032";
 
 // Set to store processed queryIds from deposits
 const processedQueryIds = new Set<string>();
@@ -80,14 +81,27 @@ async function main() {
     QueryId: ${queryId}
     Sender: ${sender.toString()}
     EVM Address: 0x${evmAddress.toString(16).padStart(40, '0')}
-    TON Amount: ${tonAmount.toString()}`);
+    TON Amount: ${Number(tonAmount) / 1e9} TON`);
                                         } else {
                                             console.log(`New deposit detected:
     QueryId: ${queryId}
     Sender: ${sender.toString()}
     EVM Address: 0x${evmAddress.toString(16).padStart(40, '0')}
-    TON Amount: ${tonAmount.toString()}`);
-                                            processedQueryIds.add(queryId);
+    TON Amount: ${Number(tonAmount) / 1e9} TON`);
+                                            
+                                            try {
+                                                // Process the withdrawal
+                                                const txHash = await withdrawToEVM({
+                                                    evmAddress: `0x${evmAddress.toString(16).padStart(40, '0')}`,
+                                                    tonAmount: Number(tonAmount) / 1e9
+                                                });
+                                                console.log(`Withdrawal processed successfully. Transaction hash: ${txHash}`);
+                                                processedQueryIds.add(queryId);
+                                            } catch (error) {
+                                                console.error("Error processing withdrawal:", error);
+                                                // Don't add to processedQueryIds if withdrawal fails
+                                                // This will allow retry on next detection
+                                            }
                                         }
                                     } catch (e) {
                                         // Skip if message format doesn't match expected structure

@@ -8,7 +8,7 @@ import {DevOpsTools} from "lib/foundry-devops/src/DevOpsTools.sol";
 contract DepositScript is Script {
     
   
-    string constant TON_ADDRESS = "EQCFX97P86v7GNUVgwlrf-G6qNBiQo68GpeK05E-i3zeZcni";
+    string constant TON_ADDRESS = "EQAXPxxHYsTmCWowXn66wPQpO_jqyiZ7ckumefvQ2YF4snFV";
 
     function run() external {
          address contractAddress = DevOpsTools.get_most_recent_deployment("Bridge2", block.chainid);
@@ -21,7 +21,7 @@ contract DepositScript is Script {
            Bridge2 bridge =   Bridge2(contractAddress);
         
        
-        bridge.Deposit{value: 0.1 ether}(tonAddressBytes);
+        bridge.Deposit{value: 0.0002 ether}(tonAddressBytes);
         
         vm.stopBroadcast();
     }

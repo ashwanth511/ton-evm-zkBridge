@@ -1,0 +1,132 @@
+import { 
+    Address, 
+    beginCell, 
+    Cell, 
+    Contract, 
+    ContractProvider, 
+    Sender, 
+    toNano 
+} from '@ton/core';
+import { TonClient } from '@ton/ton';
+
+// Withdrawal parameters interface
+interface WithdrawParams {
+    amount: string;
+    toAddress: string;
+}
+
+// Withdrawal result interface
+interface WithdrawResult {
+    success: boolean;
+    transactionHash?: string;
+    error?: string;
+}
+
+// Withdraw message interface
+interface WithdrawMessage {
+    queryId: number;
+    toAddress: Address;
+    amount: bigint;
+}
+
+// TON Bridge Contract Class
+class TONBridgeContract implements Contract {
+    public readonly address: Address;
+
+    constructor(address: Address) {
+        this.address = address;
+    }
+
+    // Send withdraw message method
+    async sendWithdraw(
+        provider: ContractProvider,
+        sender: Sender,
+        params: WithdrawMessage
+    ) {
+        const messageBody = beginCell()
+            .storeUint(0, 32)  // Operation code for withdraw
+            .storeUint(params.queryId, 64)  // Query ID
+            .storeAddress(params.toAddress)  // Destination address
+            .storeCoins(params.amount)  // Amount to withdraw
+            .endCell();
+
+        await provider.internal(sender, {
+            value: toNano('0.2'),  // Gas value
+            body: messageBody
+        });
+    }
+}
+
+// Main withdrawal function
+export async function withdrawToTon(params: WithdrawParams): Promise<WithdrawResult> {
+    try {
+        // Validate input
+        if (!params.toAddress) {
+            throw new Error('Invalid TON address');
+        }
+
+        // Convert amount to bigint
+        const amount = toNano(params.amount);
+        
+        // Validate amount
+        if (amount <= 0n) {
+            throw new Error('Invalid withdrawal amount');
+        }
+
+        // Initialize TON client
+        const client = new TonClient({
+            endpoint: 'https://testnet.toncenter.com/api/v2/jsonRPC'
+             // For Mainnet 'https://toncenter.com/api/v2/jsonRPC'
+        // For testnet: 'https://testnet.toncenter.com/api/v2/jsonRPC'
+        });
+
+        // Bridge contract address (replace with actual address)
+        const CONTRACT_ADDRESS = 'EQBGLyWt0gsb3UK1Ojz9C9yfuih9xdqRjMY7hhDYp1Fm8jk0';
+
+        // Create contract instance
+        const bridgeContract = new TONBridgeContract(
+            Address.parse(CONTRACT_ADDRESS)
+        );
+
+        // Prepare sender (you'll need to implement actual wallet logic)
+        const sender: Sender = {
+            address: Address.parse('EQAXPxxHYsTmCWowXn66wPQpO_jqyiZ7ckumefvQ2YF4snFV'),
+            send: async (args) => {
+                console.log('Sending withdrawal message:', args);
+                // Implement actual sending logic
+            }
+        };
+
+        // Get contract provider
+        const provider = client.provider(bridgeContract.address);
+
+        // Generate unique query ID
+        const queryId = Math.floor(Date.now() / 1000);
+
+        // Prepare withdrawal parameters
+        const withdrawParams: WithdrawMessage = {
+            queryId,
+            toAddress: Address.parse(params.toAddress),
+            amount
+        };
+
+        // Execute withdrawal
+        await bridgeContract.sendWithdraw(
+            provider, 
+            sender, 
+            withdrawParams
+        );
+
+        return {
+            success: true,
+            transactionHash: `withdrawal_${queryId}` // Placeholder
+        };
+
+    } catch (error) {
+        console.error('Withdrawal error:', error);
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        };
+    }
+} 
